@@ -1,0 +1,12 @@
+{
+    "name": "codemina/yii",
+    "description": "Yii 1.1 framework",
+    "type": "library",
+    "license": "Apache-2.0",
+    "authors": [
+        {
+            "name": "Ibrahim Haj",
+            "email": "e.ibh2011@gmail.com"
+        }
+    ],   
+}
