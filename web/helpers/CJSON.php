@@ -466,7 +466,7 @@ class CJSON
 				} elseif (preg_match('/^\[.*\]$/s', $str) || preg_match('/^\{.*\}$/s', $str)) {
 					// array, or object notation
 
-					if ($str{0} == '[') {
+					if ($str[0] == '[') {
 						$stk = array(self::JSON_IN_ARR);
 						$arr = array();
 					} else {
