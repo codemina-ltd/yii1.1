@@ -376,7 +376,7 @@ class CJSON
 					for ($c = 0; $c < $strlen_chrs; ++$c) {
 
 						$substr_chrs_c_2 = substr($chrs, $c, 2);
-						$ord_chrs_c = ord($chrs{$c});
+						$ord_chrs_c = ord($chrs[$c]);
 
 						switch (true) {
 							case $substr_chrs_c_2 == '\b':
@@ -406,7 +406,7 @@ class CJSON
 							case $substr_chrs_c_2 == '\\/':
 								if (($delim == '"' && $substr_chrs_c_2 != '\\\'') ||
 								   ($delim == "'" && $substr_chrs_c_2 != '\\"')) {
-									$utf8 .= $chrs{++$c};
+									$utf8 .= $chrs[++$c];
 								}
 								break;
 
@@ -419,7 +419,7 @@ class CJSON
 								break;
 
 							case ($ord_chrs_c >= 0x20) && ($ord_chrs_c <= 0x7F):
-								$utf8 .= $chrs{$c};
+								$utf8 .= $chrs[$c];
 								break;
 
 							case ($ord_chrs_c & 0xE0) == 0xC0:
@@ -503,7 +503,7 @@ class CJSON
 						$top = end($stk);
 						$substr_chrs_c_2 = substr($chrs, $c, 2);
 
-						if (($c == $strlen_chrs) || (($chrs{$c} == ',') && ($top['what'] == self::JSON_SLICE))) {
+						if (($c == $strlen_chrs) || (($chrs[$c] == ',') && ($top['what'] == self::JSON_SLICE))) {
 							// found a comma that is not inside a string, array, etc.,
 							// OR we've reached the end of the character list
 							$slice = substr($chrs, $top['where'], ($c - $top['where']));
@@ -543,37 +543,37 @@ class CJSON
 
 							}
 
-						} elseif ((($chrs{$c} == '"') || ($chrs{$c} == "'")) && ($top['what'] != self::JSON_IN_STR)) {
+						} elseif ((($chrs[$c] == '"') || ($chrs[$c] == "'")) && ($top['what'] != self::JSON_IN_STR)) {
 							// found a quote, and we are not inside a string
-							$stk[] = array('what' => self::JSON_IN_STR, 'where' => $c, 'delim' => $chrs{$c});
+							$stk[] = array('what' => self::JSON_IN_STR, 'where' => $c, 'delim' => $chrs[$c]);
 							//print("Found start of string at {$c}\n");
 
-						} elseif (($chrs{$c} == $top['delim']) &&
+						} elseif (($chrs[$c] == $top['delim']) &&
 								 ($top['what'] == self::JSON_IN_STR) &&
-								 (($chrs{$c - 1} != "\\") ||
-								 ($chrs{$c - 1} == "\\" && $chrs{$c - 2} == "\\"))) {
+								 (($chrs[$c - 1] != "\\") ||
+								 ($chrs[$c - 1] == "\\" && $chrs[$c - 2] == "\\"))) {
 							// found a quote, we're in a string, and it's not escaped
 							array_pop($stk);
 							//print("Found end of string at {$c}: ".substr($chrs, $top['where'], (1 + 1 + $c - $top['where']))."\n");
 
-						} elseif (($chrs{$c} == '[') &&
+						} elseif (($chrs[$c] == '[') &&
 								 in_array($top['what'], array(self::JSON_SLICE, self::JSON_IN_ARR, self::JSON_IN_OBJ))) {
 							// found a left-bracket, and we are in an array, object, or slice
 							$stk[] = array('what' => self::JSON_IN_ARR, 'where' => $c, 'delim' => false);
 							//print("Found start of array at {$c}\n");
 
-						} elseif (($chrs{$c} == ']') && ($top['what'] == self::JSON_IN_ARR)) {
+						} elseif (($chrs[$c] == ']') && ($top['what'] == self::JSON_IN_ARR)) {
 							// found a right-bracket, and we're in an array
 							array_pop($stk);
 							//print("Found end of array at {$c}: ".substr($chrs, $top['where'], (1 + $c - $top['where']))."\n");
 
-						} elseif (($chrs{$c} == '{') &&
+						} elseif (($chrs[$c] == '{') &&
 								 in_array($top['what'], array(self::JSON_SLICE, self::JSON_IN_ARR, self::JSON_IN_OBJ))) {
 							// found a left-brace, and we are in an array, object, or slice
 							$stk[] = array('what' => self::JSON_IN_OBJ, 'where' => $c, 'delim' => false);
 							//print("Found start of object at {$c}\n");
 
-						} elseif (($chrs{$c} == '}') && ($top['what'] == self::JSON_IN_OBJ)) {
+						} elseif (($chrs[$c] == '}') && ($top['what'] == self::JSON_IN_OBJ)) {
 							// found a right-brace, and we're in an object
 							array_pop($stk);
 							//print("Found end of object at {$c}: ".substr($chrs, $top['where'], (1 + $c - $top['where']))."\n");
