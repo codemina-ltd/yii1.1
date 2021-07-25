@@ -77,24 +77,25 @@ abstract class CAction extends CComponent implements IAction
 		return true;
 	}
 
-	/**
-	 * Executes a method of an object with the supplied named parameters.
-	 * This method is internally used.
-	 * @param mixed $object the object whose method is to be executed
-	 * @param ReflectionMethod $method the method reflection
-	 * @param array $params the named parameters
-	 * @return boolean whether the named parameters are valid
-	 * @since 1.1.7
-	 */
-	protected function runWithParamsInternal($object, $method, $params)
-	{
+    /**
+     * Executes a method of an object with the supplied named parameters.
+     * This method is internally used.
+     * @param mixed $object the object whose method is to be executed
+     * @param ReflectionMethod $method the method reflection
+     * @param array $params the named parameters
+     * @return boolean whether the named parameters are valid
+     * @throws ReflectionException
+     * @since 1.1.7
+     */
+	protected function runWithParamsInternal($object, $method, $params): bool
+    {
 		$ps=array();
 		foreach($method->getParameters() as $i=>$param)
 		{
 			$name=$param->getName();
 			if(isset($params[$name]))
 			{
-				if($param->isArray())
+				if($param->getType())
 					$ps[]=is_array($params[$name]) ? $params[$name] : array($params[$name]);
 				elseif(!is_array($params[$name]))
 					$ps[]=$params[$name];
