@@ -57,7 +57,7 @@ class CFormModel extends CModel
 	 * You may override this method to change the default.
 	 * @return array list of attribute names. Defaults to all public properties of the class.
 	 */
-	public function attributeNames()
+	public function attributeNames(): array
 	{
 		$className=get_class($this);
 		if(!isset(self::$_names[$className]))
