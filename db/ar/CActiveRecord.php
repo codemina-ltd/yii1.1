@@ -628,7 +628,7 @@ abstract class CActiveRecord extends CModel
      * @param string $className active record class name.
      * @return static active record model instance.
      */
-    public static function model(string $className = __CLASS__): static
+    public static function model(string $className = __CLASS__): self
     {
         if (isset(self::$_models[$className]))
             return self::$_models[$className];
