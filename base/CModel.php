@@ -483,7 +483,7 @@ abstract class CModel extends CComponent implements IteratorAggregate, ArrayAcce
      * @param mixed $value the attribute value
      * @since 1.1.1
      */
-    public function onUnsafeAttribute(string $name, $value)
+    public function onUnsafeAttribute($name, $value)
     {
         if (YII_DEBUG)
             Yii::log(Yii::t('yii', 'Failed to set unsafe attribute "{attribute}" of "{class}".', array('{attribute}' => $name, '{class}' => get_class($this))), CLogger::LEVEL_WARNING);
@@ -495,7 +495,7 @@ abstract class CModel extends CComponent implements IteratorAggregate, ArrayAcce
      * all attributes as specified by {@link attributeNames} will have their values unset.
      * @since 1.1.3
      */
-    public function unsetAttributes(array $names = null)
+    public function unsetAttributes($names = null)
     {
         if ($names === null)
             $names = $this->attributeNames();
