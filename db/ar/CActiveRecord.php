@@ -65,6 +65,25 @@ abstract class CActiveRecord extends CModel
     private $_pk;                                // old primary key value
     private $_alias = 't';                        // the table alias being used for query
 
+    private ?CPagination $pagination = null;
+
+    /**
+     * @return CPagination|null
+     */
+    public function getPagination(): ?CPagination
+    {
+        return $this->pagination;
+    }
+
+    /**
+     * @param CPagination|null $pagination
+     * @return CActiveRecord
+     */
+    public function setPagination(?CPagination $pagination): CActiveRecord
+    {
+        $this->pagination = $pagination;
+        return $this;
+    }
 
     /**
      * Constructor.
@@ -1479,6 +1498,24 @@ abstract class CActiveRecord extends CModel
     }
 
     /**
+     * @param CDbCriteria $criteria
+     * @param PageDTO $page
+     * @param int $total
+     * @return array<self>
+     */
+    public function paginate(CDbCriteria $criteria, PageDTO $page, int $total): array
+    {
+        $this->setPagination(
+            (new CPagination($total))
+                ->setCurrentPage($page->getNumber() ?? 0)
+                ->setPageSize($page->getSize() ?? 10)
+                ->applyLimit($criteria)
+        );
+
+        return $this->findAll($criteria);
+    }
+
+    /**
      * Finds all active records satisfying the specified condition.
      * See {@link find()} for detailed explanation about $condition and $params.
      * @param mixed $condition query condition or criteria.
@@ -1583,18 +1620,22 @@ abstract class CActiveRecord extends CModel
     }
 
     /**
-     * Finds the number of rows satisfying the specified query condition.
+     * Finds the number of rows that have the specified attribute values.
      * See {@link find()} for detailed explanation about $condition and $params.
+     * @param array $attributes list of attribute values (indexed by attribute names) that the active records should match.
+     * An attribute value can be an array which will be used to generate an IN condition.
      * @param mixed $condition query condition or criteria.
      * @param array $params parameters to be bound to an SQL statement.
-     * @return string|integer the number of rows satisfying the specified query condition. Note: type is string to keep max. precision.
+     * @return string the number of rows satisfying the specified query condition. Note: type is string to keep max. precision.
+     * @since 1.1.4
      */
-    public function count($condition = '', $params = array())
+    public function countByAttributes($attributes, $condition = '', $params = array())
     {
-        Yii::trace(get_class($this) . '.count()', 'system.db.ar.CActiveRecord');
-        $this->beforeCount();
+        Yii::trace(get_class($this) . '.countByAttributes()', 'system.db.ar.CActiveRecord');
+        $prefix = $this->getTableAlias(true) . '.';
         $builder = $this->getCommandBuilder();
-        $criteria = $builder->createCriteria($condition, $params);
+        $this->beforeCount();
+        $criteria = $builder->createColumnCriteria($this->getTableSchema(), $attributes, $condition, $params, $prefix);
         $this->applyScopes($criteria);
 
         if (empty($criteria->with))
@@ -1636,29 +1677,25 @@ abstract class CActiveRecord extends CModel
     }
 
     /**
-     * Finds the number of rows that have the specified attribute values.
+     * Finds the number of rows satisfying the specified query condition.
      * See {@link find()} for detailed explanation about $condition and $params.
-     * @param array $attributes list of attribute values (indexed by attribute names) that the active records should match.
-     * An attribute value can be an array which will be used to generate an IN condition.
      * @param mixed $condition query condition or criteria.
      * @param array $params parameters to be bound to an SQL statement.
-     * @return string the number of rows satisfying the specified query condition. Note: type is string to keep max. precision.
-     * @since 1.1.4
+     * @return string|integer the number of rows satisfying the specified query condition. Note: type is string to keep max. precision.
      */
-    public function countByAttributes($attributes, $condition = '', $params = array())
+    public function count($condition = '', $params = array())
     {
-        Yii::trace(get_class($this) . '.countByAttributes()', 'system.db.ar.CActiveRecord');
-        $prefix = $this->getTableAlias(true) . '.';
-        $builder = $this->getCommandBuilder();
+        Yii::trace(get_class($this) . '.count()', 'system.db.ar.CActiveRecord');
         $this->beforeCount();
-        $criteria = $builder->createColumnCriteria($this->getTableSchema(), $attributes, $condition, $params, $prefix);
+        $builder = $this->getCommandBuilder();
+        $criteria = $builder->createCriteria($condition, $params);
         $this->applyScopes($criteria);
 
         if (empty($criteria->with))
-            return $builder->createCountCommand($this->getTableSchema(), $criteria)->queryScalar();
+            return (int)$builder->createCountCommand($this->getTableSchema(), $criteria)->queryScalar();
         else {
             $finder = $this->getActiveFinder($criteria->with);
-            return $finder->count($criteria);
+            return (int)$finder->count($criteria);
         }
     }
 

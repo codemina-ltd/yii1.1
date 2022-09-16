@@ -122,7 +122,7 @@ class CPagination extends CComponent
      */
     public function setItemCount($value)
     {
-        if (($this->_itemCount = (int) $value) < 0)
+        if (($this->_itemCount = (int)$value) < 0)
             $this->_itemCount = 0;
     }
 
@@ -151,10 +151,12 @@ class CPagination extends CComponent
      * Applies LIMIT and OFFSET to the specified query criteria.
      * @param CDbCriteria $criteria the query criteria that should be applied with the limit
      */
-    public function applyLimit($criteria)
+    public function applyLimit(CDbCriteria $criteria): self
     {
         $criteria->limit = $this->getLimit();
         $criteria->offset = $this->getOffset();
+
+        return $this;
     }
 
     /**
@@ -179,10 +181,12 @@ class CPagination extends CComponent
     /**
      * @param integer $value number of items in each page
      */
-    public function setPageSize($value)
+    public function setPageSize(int $value): self
     {
         if (($this->_pageSize = $value) <= 0)
             $this->_pageSize = self::DEFAULT_PAGE_SIZE;
+
+        return $this;
     }
 
     /**
@@ -220,10 +224,11 @@ class CPagination extends CComponent
     /**
      * @param integer $value the zero-based index of the current page.
      */
-    public function setCurrentPage($value)
+    public function setCurrentPage(int $value): self
     {
         $this->_currentPage = $value;
         $_GET[$this->pageVar] = $value + 1;
+        return $this;
     }
 
     /**
