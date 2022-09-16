@@ -471,9 +471,11 @@ abstract class CActiveRecord extends CModel
      * @param CDbCriteria $criteria the query criteria
      * @since 1.1.3
      */
-    public function setDbCriteria($criteria)
+    public function setDbCriteria(CDbCriteria $criteria): self
     {
         $this->_c = $criteria;
+
+        return $this;
     }
 
     /**
@@ -1503,7 +1505,7 @@ abstract class CActiveRecord extends CModel
      * @param int $total
      * @return array<self>
      */
-    public function paginate(CDbCriteria $criteria, PageDTO $page, int $total): array
+    public function paginate(CDbCriteria $criteria, PageDTO $page, int $total): self
     {
         $this->setPaginator(
             (new CPagination($total))
@@ -1512,7 +1514,7 @@ abstract class CActiveRecord extends CModel
                 ->applyLimit($criteria)
         );
 
-        return $this->findAll($criteria);
+        return $this->setDbCriteria($criteria);
     }
 
     /**
