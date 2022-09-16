@@ -65,23 +65,23 @@ abstract class CActiveRecord extends CModel
     private $_pk;                                // old primary key value
     private $_alias = 't';                        // the table alias being used for query
 
-    private ?CPagination $pagination = null;
+    private ?CPagination $paginator = null;
 
     /**
      * @return CPagination|null
      */
-    public function getPagination(): ?CPagination
+    public function getPaginator(): ?CPagination
     {
-        return $this->pagination;
+        return $this->paginator;
     }
 
     /**
-     * @param CPagination|null $pagination
+     * @param CPagination|null $paginator
      * @return CActiveRecord
      */
-    public function setPagination(?CPagination $pagination): CActiveRecord
+    public function setPaginator(?CPagination $paginator): CActiveRecord
     {
-        $this->pagination = $pagination;
+        $this->paginator = $paginator;
         return $this;
     }
 
@@ -1505,7 +1505,7 @@ abstract class CActiveRecord extends CModel
      */
     public function paginate(CDbCriteria $criteria, PageDTO $page, int $total): array
     {
-        $this->setPagination(
+        $this->setPaginator(
             (new CPagination($total))
                 ->setCurrentPage($page->getNumber() ?? 0)
                 ->setPageSize($page->getSize() ?? 10)
