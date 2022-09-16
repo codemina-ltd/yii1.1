@@ -310,6 +310,7 @@ class YiiBase
         'CBasePager' => '/web/widgets/pagers/CBasePager.php',
         'CLinkPager' => '/web/widgets/pagers/CLinkPager.php',
         'CListPager' => '/web/widgets/pagers/CListPager.php',
+        'PageDTO' => '/base/PageDTO.php'
     );
 
     /**
@@ -413,7 +414,7 @@ class YiiBase
      * @return string the translated message
      * @see CMessageSource
      */
-    public static function t($category, $message, $params = array(), $source = null, $language = null)
+    public static function t($category, $message, $params = array(), $source = null, $language = null): string
     {
         if (self::$_app !== null) {
             if ($source === null)
@@ -427,8 +428,8 @@ class YiiBase
             $params = array($params);
         if (isset($params[0])) // number choice
         {
-            if (strpos($message, '|') !== false) {
-                if (strpos($message, '#') === false) {
+            if (str_contains($message, '|')) {
+                if (!str_contains($message, '#')) {
                     $chunks = explode('|', $message);
                     $expressions = self::$_app->getLocale($language)->getPluralRules();
                     if ($n = min(count($chunks), count($expressions))) {
@@ -450,7 +451,7 @@ class YiiBase
     /**
      * @return string the path of the framework
      */
-    public static function getFrameworkPath()
+    public static function getFrameworkPath(): string
     {
         return YII_PATH;
     }
