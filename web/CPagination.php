@@ -99,6 +99,7 @@ class CPagination extends CComponent
     private $_pageSize = self::DEFAULT_PAGE_SIZE;
     private $_itemCount = 0;
     private $_currentPage;
+    private ?int $filteredCount = 0;
 
     /**
      * Constructor.
@@ -107,6 +108,25 @@ class CPagination extends CComponent
     public function __construct($itemCount = 0)
     {
         $this->setItemCount($itemCount);
+    }
+
+    /**
+     * @return int|null
+     */
+    public function getFilteredCount(): ?int
+    {
+        return $this->filteredCount;
+    }
+
+    /**
+     * @param int|null $filter
+     * @return CPagination
+     */
+    public function setFilteredCount(?int $filter): self
+    {
+        $this->filteredCount = $filter;
+
+        return $this;
     }
 
     /**
