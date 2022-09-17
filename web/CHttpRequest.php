@@ -217,6 +217,16 @@ class CHttpRequest extends CApplicationComponent
         return isset($_GET[$name]) ? $_GET[$name] : $defaultValue;
     }
 
+    public function hasQuery(string $name): bool
+    {
+        return isset($_GET[$name]);
+    }
+
+    public function hastContent(string $name): bool
+    {
+        return isset($_POST[$name]);
+    }
+
     /**
      * Returns the currently requested URL.
      * This is the same as {@link getRequestUri}.
