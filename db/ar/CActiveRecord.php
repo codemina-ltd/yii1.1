@@ -1516,7 +1516,7 @@ abstract class CActiveRecord extends CModel
                 ->applyLimit($criteria)
         );
 
-        return $this->with($with)->setDbCriteria($criteria);
+        return $this->setDbCriteria($criteria)->with($with);
     }
 
     /**
@@ -1525,6 +1525,7 @@ abstract class CActiveRecord extends CModel
      * @param mixed $condition query condition or criteria.
      * @param array $params parameters to be bound to an SQL statement.
      * @return static[] list of active records satisfying the specified condition. An empty array is returned if none is found.
+     * @throws CException
      */
     public function findAll($condition = '', $params = array())
     {
