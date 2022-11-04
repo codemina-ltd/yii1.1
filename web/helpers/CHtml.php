@@ -1015,7 +1015,7 @@ class CHtml
 	 * @see inputField
 	 * @see listData
 	 */
-	public static function dropDownList(string $name, array|string $select, array $data, array $htmlOptions = [])
+	public static function dropDownList(string $name, array|string|null $select, array $data, array $htmlOptions = [])
 	{
 		$htmlOptions['name']=$name;
 
