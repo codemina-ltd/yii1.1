@@ -10,7 +10,6 @@
         }
     ],
   "require": {
-    "ext-mcrypt": "*",
-        "spatie/data-transfer-object": "^3.9"
+      "ext-mcrypt": "*"
   }
 }
