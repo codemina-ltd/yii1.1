@@ -1512,7 +1512,7 @@ abstract class CActiveRecord extends CModel
             (new CPagination($total))
                 ->setCurrentPage($page->getNumber() ?? 0)
                 ->setPageSize($page->getSize() ?? 10)
-                ->setFilteredCount($this->count($criteria))
+                ->setFilteredCount($this->with($with)->count($criteria))
                 ->applyLimit($criteria)
         );
 
