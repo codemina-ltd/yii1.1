@@ -9,6 +9,11 @@
  * @license http://www.yiiframework.com/license/
  */
 
+use Money\Currencies\ISOCurrencies;
+use Money\Currency;
+use Money\Money;
+use Money\Parser\IntlMoneyParser;
+
 /**
  * CActiveRecord is the base class for classes representing relational data.
  *
@@ -68,24 +73,6 @@ abstract class CActiveRecord extends CModel
     private ?CPagination $paginator = null;
 
     /**
-     * @return CPagination|null
-     */
-    public function getPaginator(): ?CPagination
-    {
-        return $this->paginator;
-    }
-
-    /**
-     * @param CPagination|null $paginator
-     * @return CActiveRecord
-     */
-    public function setPaginator(?CPagination $paginator): CActiveRecord
-    {
-        $this->paginator = $paginator;
-        return $this;
-    }
-
-    /**
      * Constructor.
      * @param string $scenario scenario name. See {@link CModel::scenario} for more details about this parameter.
      * Note: in order to setup initial model parameters use {@link init()} or {@link afterConstruct()}.
@@ -139,6 +126,24 @@ abstract class CActiveRecord extends CModel
      */
     public function init()
     {
+    }
+
+    /**
+     * @return CPagination|null
+     */
+    public function getPaginator(): ?CPagination
+    {
+        return $this->paginator;
+    }
+
+    /**
+     * @param CPagination|null $paginator
+     * @return CActiveRecord
+     */
+    public function setPaginator(?CPagination $paginator): CActiveRecord
+    {
+        $this->paginator = $paginator;
+        return $this;
     }
 
     /**
@@ -467,18 +472,6 @@ abstract class CActiveRecord extends CModel
     }
 
     /**
-     * Sets the query criteria for the current model.
-     * @param CDbCriteria $criteria the query criteria
-     * @since 1.1.3
-     */
-    public function setDbCriteria(CDbCriteria $criteria): self
-    {
-        $this->_c = $criteria;
-
-        return $this;
-    }
-
-    /**
      * Refreshes the meta data for this AR class.
      * By calling this method, this AR class will regenerate the meta data needed.
      * This is useful if the table schema has been changed and you want to use the latest
@@ -765,6 +758,7 @@ abstract class CActiveRecord extends CModel
      * meaning all attributes that are loaded from DB will be saved.
      * @return boolean whether the attributes are valid and the record is inserted successfully.
      * @throws CDbException if the record is not new
+     * @throws ReflectionException
      */
     public function insert($attributes = null)
     {
@@ -778,9 +772,14 @@ abstract class CActiveRecord extends CModel
             if ($command->execute()) {
                 $primaryKey = $table->primaryKey;
                 if ($table->sequenceName !== null) {
-                    if (is_string($primaryKey) && $this->$primaryKey === null)
+                    if (property_exists($this, $primaryKey)) {
+                        $refProp = new ReflectionProperty($this::class, $primaryKey);
+                        if (!$refProp->isInitialized($this)) {
+                            $this->$primaryKey = $builder->getLastInsertID($table);
+                        }
+                    } elseif (is_string($primaryKey) && $this->$primaryKey === null) {
                         $this->$primaryKey = $builder->getLastInsertID($table);
-                    elseif (is_array($primaryKey)) {
+                    } elseif (is_array($primaryKey)) {
                         foreach ($primaryKey as $pk) {
                             if ($this->$pk === null) {
                                 $this->$pk = $builder->getLastInsertID($table);
@@ -854,15 +853,20 @@ abstract class CActiveRecord extends CModel
      * those that are not loaded from DB (null will be returned for those attributes).
      * If this is null, all attributes except those that are not loaded from DB will be returned.
      * @return array attribute values indexed by attribute names.
+     * @throws ReflectionException
      */
-    public function getAttributes($names = true)
+    public function getAttributes($names = true): array
     {
         $attributes = $this->_attributes;
         foreach ($this->getMetaData()->columns as $name => $column) {
-            if (property_exists($this, $name))
-                $attributes[$name] = $this->$name;
-            elseif ($names === true && !isset($attributes[$name]))
+            if (property_exists($this, $name)) {
+                $refProp = new ReflectionProperty($this::class, $name);
+                if ($refProp->isInitialized($this)) {
+                    $attributes[$name] = $this->$name;
+                }
+            } elseif ($names === true && !isset($attributes[$name])) {
                 $attributes[$name] = null;
+            }
         }
         if (is_array($names)) {
             $attrs = array();
@@ -870,7 +874,7 @@ abstract class CActiveRecord extends CModel
                 if (property_exists($this, $name))
                     $attrs[$name] = $this->$name;
                 else
-                    $attrs[$name] = isset($attributes[$name]) ? $attributes[$name] : null;
+                    $attrs[$name] = $attributes[$name] ?? null;
             }
             return $attrs;
         } else
@@ -1377,6 +1381,7 @@ abstract class CActiveRecord extends CModel
      * @param boolean $callAfterFind whether to call {@link afterFind} after the record is populated.
      * @return static|null the newly created active record. The class of the object is the same as the model class.
      * Null is returned if the input data is false.
+     * @throws Exception
      */
     public function populateRecord($attributes, $callAfterFind = true)
     {
@@ -1386,10 +1391,21 @@ abstract class CActiveRecord extends CModel
             $record->init();
             $md = $record->getMetaData();
             foreach ($attributes as $name => $value) {
-                if (property_exists($record, $name))
-                    $record->$name = $value;
-                elseif (isset($md->columns[$name]))
+                if (property_exists($record, $name)) {
+                    /** @var CMysqlColumnSchema $column */
+                    $column = $md->columns[$name];
+
+                    if ($column->comment === 'ARType:money') {
+                        $data = json_decode($value, true);
+                        $record->$name = new Money($data['amount'], new Currency($data['currency']));
+                    } else if ($column->comment === 'ARType:datetime_immutable') {
+                        $record->$name = new DateTimeImmutable($value);
+                    } else {
+                        $record->$name = $value;
+                    }
+                } elseif (isset($md->columns[$name])) {
                     $record->_attributes[$name] = $value;
+                }
             }
             $record->_pk = $record->getPrimaryKey();
             $record->attachBehaviors($record->behaviors());
@@ -1517,6 +1533,109 @@ abstract class CActiveRecord extends CModel
         );
 
         return $this->setDbCriteria($criteria)->with($with);
+    }
+
+    /**
+     * Finds the number of rows satisfying the specified query condition.
+     * See {@link find()} for detailed explanation about $condition and $params.
+     * @param mixed $condition query condition or criteria.
+     * @param array $params parameters to be bound to an SQL statement.
+     * @return string|integer the number of rows satisfying the specified query condition. Note: type is string to keep max. precision.
+     */
+    public function count($condition = '', $params = array())
+    {
+        Yii::trace(get_class($this) . '.count()', 'system.db.ar.CActiveRecord');
+        $this->beforeCount();
+        $builder = $this->getCommandBuilder();
+        $criteria = $builder->createCriteria($condition, $params);
+        $this->applyScopes($criteria);
+
+        if (empty($criteria->with))
+            return (int)$builder->createCountCommand($this->getTableSchema(), $criteria)->queryScalar();
+        else {
+            $finder = $this->getActiveFinder($criteria->with);
+            return (int)$finder->count($criteria);
+        }
+    }
+
+    /**
+     * This method is invoked before an AR finder executes a count call.
+     * The count calls include {@link count} and {@link countByAttributes}
+     * The default implementation raises the {@link onBeforeCount} event.
+     * If you override this method, make sure you call the parent implementation
+     * so that the event is raised properly.
+     * @since 1.1.14
+     */
+    protected function beforeCount()
+    {
+        if ($this->hasEventHandler('onBeforeCount'))
+            $this->onBeforeCount(new CEvent($this));
+    }
+
+    /**
+     * This event is raised before an AR finder performs a count call.
+     * If you want to access or modify the query criteria used for the
+     * count call, you can use {@link getDbCriteria()} to customize it based on your needs.
+     * When modifying criteria in beforeCount you have to make sure you are using the right
+     * table alias which is different on normal count and relational call.
+     * You can use {@link getTableAlias()} to get the alias used for the upcoming count call.
+     * @param CModelEvent $event the event parameter
+     * @see beforeCount
+     * @since 1.1.14
+     */
+    public function onBeforeCount($event)
+    {
+        $this->raiseEvent('onBeforeCount', $event);
+    }
+
+    /**
+     * Specifies which related objects should be eagerly loaded.
+     * This method takes variable number of parameters. Each parameter specifies
+     * the name of a relation or child-relation. For example,
+     * <pre>
+     * // find all posts together with their author and comments
+     * Post::model()->with('author','comments')->findAll();
+     * // find all posts together with their author and the author's profile
+     * Post::model()->with('author','author.profile')->findAll();
+     * </pre>
+     * The relations should be declared in {@link relations()}.
+     *
+     * By default, the options specified in {@link relations()} will be used
+     * to do relational query. In order to customize the options on the fly,
+     * we should pass an array parameter to the with() method. The array keys
+     * are relation names, and the array values are the corresponding query options.
+     * For example,
+     * <pre>
+     * Post::model()->with(array(
+     *     'author'=>array('select'=>'id, name'),
+     *     'comments'=>array('condition'=>'approved=1', 'order'=>'create_time'),
+     * ))->findAll();
+     * </pre>
+     *
+     * @return static the AR object itself.
+     */
+    public function with()
+    {
+        if (func_num_args() > 0) {
+            $with = func_get_args();
+            if (is_array($with[0]))  // the parameter is given as an array
+                $with = $with[0];
+            if (!empty($with))
+                $this->getDbCriteria()->mergeWith(array('with' => $with));
+        }
+        return $this;
+    }
+
+    /**
+     * Sets the query criteria for the current model.
+     * @param CDbCriteria $criteria the query criteria
+     * @since 1.1.3
+     */
+    public function setDbCriteria(CDbCriteria $criteria): self
+    {
+        $this->_c = $criteria;
+
+        return $this;
     }
 
     /**
@@ -1652,59 +1771,6 @@ abstract class CActiveRecord extends CModel
     }
 
     /**
-     * This method is invoked before an AR finder executes a count call.
-     * The count calls include {@link count} and {@link countByAttributes}
-     * The default implementation raises the {@link onBeforeCount} event.
-     * If you override this method, make sure you call the parent implementation
-     * so that the event is raised properly.
-     * @since 1.1.14
-     */
-    protected function beforeCount()
-    {
-        if ($this->hasEventHandler('onBeforeCount'))
-            $this->onBeforeCount(new CEvent($this));
-    }
-
-    /**
-     * This event is raised before an AR finder performs a count call.
-     * If you want to access or modify the query criteria used for the
-     * count call, you can use {@link getDbCriteria()} to customize it based on your needs.
-     * When modifying criteria in beforeCount you have to make sure you are using the right
-     * table alias which is different on normal count and relational call.
-     * You can use {@link getTableAlias()} to get the alias used for the upcoming count call.
-     * @param CModelEvent $event the event parameter
-     * @see beforeCount
-     * @since 1.1.14
-     */
-    public function onBeforeCount($event)
-    {
-        $this->raiseEvent('onBeforeCount', $event);
-    }
-
-    /**
-     * Finds the number of rows satisfying the specified query condition.
-     * See {@link find()} for detailed explanation about $condition and $params.
-     * @param mixed $condition query condition or criteria.
-     * @param array $params parameters to be bound to an SQL statement.
-     * @return string|integer the number of rows satisfying the specified query condition. Note: type is string to keep max. precision.
-     */
-    public function count($condition = '', $params = array())
-    {
-        Yii::trace(get_class($this) . '.count()', 'system.db.ar.CActiveRecord');
-        $this->beforeCount();
-        $builder = $this->getCommandBuilder();
-        $criteria = $builder->createCriteria($condition, $params);
-        $this->applyScopes($criteria);
-
-        if (empty($criteria->with))
-            return (int)$builder->createCountCommand($this->getTableSchema(), $criteria)->queryScalar();
-        else {
-            $finder = $this->getActiveFinder($criteria->with);
-            return (int)$finder->count($criteria);
-        }
-    }
-
-    /**
      * Finds the number of rows using the given SQL statement.
      * This is equivalent to calling {@link CDbCommand::queryScalar} with the specified
      * SQL statement and the parameters.
@@ -1743,44 +1809,6 @@ abstract class CActiveRecord extends CModel
             $finder = $this->getActiveFinder($criteria->with);
             return $finder->count($criteria) > 0;
         }
-    }
-
-    /**
-     * Specifies which related objects should be eagerly loaded.
-     * This method takes variable number of parameters. Each parameter specifies
-     * the name of a relation or child-relation. For example,
-     * <pre>
-     * // find all posts together with their author and comments
-     * Post::model()->with('author','comments')->findAll();
-     * // find all posts together with their author and the author's profile
-     * Post::model()->with('author','author.profile')->findAll();
-     * </pre>
-     * The relations should be declared in {@link relations()}.
-     *
-     * By default, the options specified in {@link relations()} will be used
-     * to do relational query. In order to customize the options on the fly,
-     * we should pass an array parameter to the with() method. The array keys
-     * are relation names, and the array values are the corresponding query options.
-     * For example,
-     * <pre>
-     * Post::model()->with(array(
-     *     'author'=>array('select'=>'id, name'),
-     *     'comments'=>array('condition'=>'approved=1', 'order'=>'create_time'),
-     * ))->findAll();
-     * </pre>
-     *
-     * @return static the AR object itself.
-     */
-    public function with()
-    {
-        if (func_num_args() > 0) {
-            $with = func_get_args();
-            if (is_array($with[0]))  // the parameter is given as an array
-                $with = $with[0];
-            if (!empty($with))
-                $this->getDbCriteria()->mergeWith(array('with' => $with));
-        }
-        return $this;
     }
 
     /**

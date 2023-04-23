@@ -78,7 +78,7 @@ class CMssqlColumnSchema extends CDbColumnSchema
 	 * @param mixed $value input value
 	 * @return mixed converted value
 	 */
-	public function typecast($value)
+	public function typecast(mixed $value)
 	{
 		if($this->type==='boolean')
 			return $value ? 1 : 0;
