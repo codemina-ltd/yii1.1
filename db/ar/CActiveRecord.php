@@ -686,10 +686,17 @@ abstract class CActiveRecord extends CModel
      */
     public function getAttribute($name)
     {
-        if (property_exists($this, $name))
-            return $this->$name;
-        elseif (isset($this->_attributes[$name]))
+        if (property_exists($this, $name)) {
+            $prop = new ReflectionProperty($this::class, $name);
+
+            if ($prop->isInitialized($this)) {
+                return $this->$name;
+            } else {
+                return null;
+            }
+        } elseif (isset($this->_attributes[$name])) {
             return $this->_attributes[$name];
+        }
     }
 
     /**
