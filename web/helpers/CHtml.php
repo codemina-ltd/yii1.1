@@ -1584,7 +1584,7 @@ class CHtml
                 if (preg_match('/\](\w+(\[.+)?)/', $attribute, $matches))
                     $attribute = $matches[1]; // we get: name[b][c]
                 if (($pos = strpos($attribute, '[')) === false)
-                    return $model->$attribute;
+                    return $model->getAttribute($attribute);
             }
             $name = substr($attribute, 0, $pos);
             $value = $model->$name;
@@ -1595,8 +1595,9 @@ class CHtml
                     return null;
             }
             return $value;
-        } else
-            return $model->$attribute;
+        } else {
+            return $model->getAttribute($attribute);
+        }
     }
 
     /**
