@@ -1574,17 +1574,25 @@ class CHtml
      * @param CModel $model the data model
      * @param string $attribute the attribute name
      * @return mixed the attribute value
+     * @throws ReflectionException
      * @since 1.1.3
      */
     public static function resolveValue($model, $attribute)
     {
+        $class = new ReflectionClass($model::class);
+
         if (($pos = strpos($attribute, '[')) !== false) {
             if ($pos === 0) // [a]name[b][c], should ignore [a]
             {
                 if (preg_match('/\](\w+(\[.+)?)/', $attribute, $matches))
                     $attribute = $matches[1]; // we get: name[b][c]
-                if (($pos = strpos($attribute, '[')) === false)
-                    return $model->getAttribute($attribute);
+                if (($pos = strpos($attribute, '[')) === false) {
+                    if ($class->hasMethod('getAttribute')) {
+                        return $model->getAttribute($attribute);
+                    } else {
+                        return $model->$attribute;
+                    }
+                }
             }
             $name = substr($attribute, 0, $pos);
             $value = $model->$name;
@@ -1596,7 +1604,11 @@ class CHtml
             }
             return $value;
         } else {
-            return $model->getAttribute($attribute);
+            if ($class->hasMethod('getAttribute')) {
+                return $model->getAttribute($attribute);
+            } else {
+                return $model->$attribute;
+            }
         }
     }
 

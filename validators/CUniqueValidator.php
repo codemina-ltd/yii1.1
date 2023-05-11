@@ -79,7 +79,12 @@ class CUniqueValidator extends CValidator
 	 */
 	protected function validateAttribute($object,$attribute)
 	{
-		$value=$object->$attribute;
+        $property = new ReflectionProperty($object::class, $attribute);
+        if ($property->isInitialized($object)) {
+            $value = $object->$attribute;
+        } else {
+            $value = null;
+        }
 		if($this->allowEmpty && $this->isEmpty($value))
 			return;
 

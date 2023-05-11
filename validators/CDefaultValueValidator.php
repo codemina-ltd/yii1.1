@@ -41,7 +41,12 @@ class CDefaultValueValidator extends CValidator
 			$object->$attribute=$this->value;
 		else
 		{
-			$value=$object->$attribute;
+            $property = new ReflectionProperty($object::class, $attribute);
+            if ($property->isInitialized($object)) {
+                $value = $object->$attribute;
+            } else {
+                $value = null;
+            }
 			if($value===null || $value==='')
 				$object->$attribute=$this->value;
 		}
