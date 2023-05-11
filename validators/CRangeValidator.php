@@ -61,11 +61,12 @@ class CRangeValidator extends CValidator
 	 */
 	protected function validateAttribute($object,$attribute)
 	{
-        $property = new ReflectionProperty($object::class, $attribute);
-        if ($property->isInitialized($object)) {
-            $value = $object->$attribute;
+        $class = new ReflectionClass($object::class);
+
+        if ($class->hasMethod('getAttribute')) {
+            $value = $object->getAttribute($attribute);
         } else {
-            $value = null;
+            $value = $object->$attribute;
         }
 		if($this->allowEmpty && $this->isEmpty($value))
 			return;
