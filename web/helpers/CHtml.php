@@ -8,6 +8,10 @@
  * @license http://www.yiiframework.com/license/
  */
 
+use Money\Currencies\ISOCurrencies;
+use Money\Formatter\DecimalMoneyFormatter;
+use Money\Money;
+
 
 /**
  * CHtml is a static class that provides a collection of helper methods for creating HTML views.
@@ -1558,12 +1562,26 @@ class CHtml
                 unset($htmlOptions['maxlength']);
         }
 
-        if ($type === 'file')
+        if ($type === 'file') {
             unset($htmlOptions['value']);
-        elseif (!isset($htmlOptions['value']))
+        } elseif (!isset($htmlOptions['value'])) {
             $htmlOptions['value'] = self::resolveValue($model, $attribute);
-        if ($model->hasErrors($attribute))
+        }
+
+        if ($model->hasErrors($attribute)) {
             self::addErrorCss($htmlOptions);
+        }
+
+        if (isset($htmlOptions['value']) && $htmlOptions['value'] instanceof DateTimeImmutable) {
+            $htmlOptions['value'] = $htmlOptions['value']->format('Y-m-d');
+        }
+
+        if (isset($htmlOptions['value']) && $htmlOptions['value'] instanceof Money) {
+            $currencies = new ISOCurrencies();
+            $formatter = new DecimalMoneyFormatter($currencies);
+
+            $htmlOptions['value'] = $formatter->format($htmlOptions['value']);
+        }
         return self::tag('input', $htmlOptions);
     }
 
