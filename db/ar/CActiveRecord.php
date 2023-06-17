@@ -1404,7 +1404,7 @@ abstract class CActiveRecord extends CModel
 
                     if ($column->comment === 'ARType:money') {
                         $data = json_decode($value, true);
-                        $record->$name = new Money($data['amount'], new Currency($data['currency']));
+                        $record->$name = $data ? new Money($data['amount'], new Currency($data['currency'])) : null;
                     } else if ($column->comment === 'ARType:datetime_immutable') {
                         $record->$name = new DateTimeImmutable($value);
                     } else {
