@@ -149,6 +149,7 @@ class YiiBase
         'CDbColumnSchema' => '/db/schema/CDbColumnSchema.php',
         'CDbCommandBuilder' => '/db/schema/CDbCommandBuilder.php',
         'CDbCriteria' => '/db/schema/CDbCriteria.php',
+        'CDbMigrationColumn' => '/db/CDbMigrationColumn.php',
         'CDbExpression' => '/db/schema/CDbExpression.php',
         'CDbSchema' => '/db/schema/CDbSchema.php',
         'CDbTableSchema' => '/db/schema/CDbTableSchema.php',
