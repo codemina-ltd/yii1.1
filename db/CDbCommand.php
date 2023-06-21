@@ -511,25 +511,6 @@ class CDbCommand extends CComponent
     }
 
     /**
-     * Executes the SQL statement and returns the first row of the result.
-     * This is a convenient method of {@link query} when only the first row of data is needed.
-     * @param boolean $fetchAssociative whether the row should be returned as an associated array with
-     * column names as the keys or the array keys are column indexes (0-based).
-     * @param array $params input parameters (name=>value) for the SQL execution. This is an alternative
-     * to {@link bindParam} and {@link bindValue}. If you have multiple input parameters, passing
-     * them in this way can improve the performance. Note that if you pass parameters in this way,
-     * you cannot bind parameters or values using {@link bindParam} or {@link bindValue}, and vice versa.
-     * Please also note that all values are treated as strings in this case, if you need them to be handled as
-     * their real data types, you have to use {@link bindParam} or {@link bindValue} instead.
-     * @return mixed the first row (in terms of an array) of the query result, false if no result.
-     * @throws CException execution failed
-     */
-    public function queryRow($fetchAssociative = true, $params = array())
-    {
-        return $this->queryInternal('fetch', $fetchAssociative ? $this->_fetchMode : PDO::FETCH_NUM, $params);
-    }
-
-    /**
      * Executes the SQL statement and returns the value of the first column in the first row of data.
      * This is a convenient method of {@link query} when only a single scalar
      * value is needed (e.g. obtaining the count of the records).
@@ -1408,11 +1389,39 @@ class CDbCommand extends CComponent
      * @param array $columns the columns (name=>definition) in the new table.
      * @param string $options additional SQL fragment that will be appended to the generated SQL.
      * @return integer 0 is always returned. See {@link http://php.net/manual/en/pdostatement.rowcount.php} for more information.
+     * @throws Exception
      * @since 1.1.6
      */
-    public function createTable($table, $columns, $options = null)
+    public function createTable($table, $columns, $options = null): int
     {
-        return $this->setText($this->getConnection()->getSchema()->createTable($table, $columns, $options))->execute();
+        $result = $this->setText($this->getConnection()->getSchema()->createTable($table, $columns, $options))->execute();
+
+        foreach ($columns as $name => $column) {
+            if ($column instanceof CDbMigrationColumn && $column->getColumnType() === CDbMigrationColumn::TYPE_FOREIGN_KEY) {
+                $index = strtoupper(bin2hex(random_bytes(5)));
+                $this->addForeignKey("INDEX_$index", $table, $name, $column->getRefTable(), $column->getRefColumn(), 'RESTRICT', 'CASCADE');
+            }
+        }
+
+        return $result;
+    }
+
+    /**
+     * Builds a SQL statement for adding a foreign key constraint to an existing table.
+     * The method will properly quote the table and column names.
+     * @param string $name the name of the foreign key constraint.
+     * @param string $table the table that the foreign key constraint will be added to.
+     * @param string|array $columns the name of the column to that the constraint will be added on. If there are multiple columns, separate them with commas or pass as an array of column names.
+     * @param string $refTable the table that the foreign key references to.
+     * @param string|array $refColumns the name of the column that the foreign key references to. If there are multiple columns, separate them with commas or pass as an array of column names.
+     * @param string $delete the ON DELETE option. Most DBMS support these options: RESTRICT, CASCADE, NO ACTION, SET DEFAULT, SET NULL
+     * @param string $update the ON UPDATE option. Most DBMS support these options: RESTRICT, CASCADE, NO ACTION, SET DEFAULT, SET NULL
+     * @return integer number of rows affected by the execution.
+     * @since 1.1.6
+     */
+    public function addForeignKey($name, $table, $columns, $refTable, $refColumns, $delete = null, $update = null)
+    {
+        return $this->setText($this->getConnection()->getSchema()->addForeignKey($name, $table, $columns, $refTable, $refColumns, $delete, $update))->execute();
     }
 
     /**
@@ -1435,7 +1444,75 @@ class CDbCommand extends CComponent
      */
     public function dropTable($table)
     {
+        $constraints = $this->getConstraints($table);
+
+        foreach ($constraints as $constraint) {
+            $this->dropForeignKey($constraint['name'], $table);
+        }
+
         return $this->setText($this->getConnection()->getSchema()->dropTable($table))->execute();
+    }
+
+    /**
+     * @param string $table
+     * @return array{int, array{name: string, type: string, column: string}}
+     * @throws CException
+     */
+    public function getConstraints(string $table): array
+    {
+        $result = $this->getConnection()->createCommand("SHOW CREATE TABLE $table")->queryRow();
+        $createTableStatement = $result['Create Table'];
+
+        $pattern = '/CONSTRAINT\s+`(\w+)`\s+(FOREIGN KEY|UNIQUE KEY)\s+\(`(\w+)`\)/i';
+        preg_match_all($pattern, $createTableStatement, $matches);
+
+        $constraints = [];
+
+        for ($i = 0; $i < count($matches[0]); $i++) {
+            $constraintName = $matches[1][$i];
+            $constraintType = $matches[2][$i];
+            $constraintColumn = $matches[3][$i];
+
+            // Store the constraint information
+            $constraints[] = [
+                'name' => $constraintName,
+                'type' => $constraintType,
+                'column' => $constraintColumn,
+            ];
+        }
+
+        return $constraints;
+    }
+
+    /**
+     * Executes the SQL statement and returns the first row of the result.
+     * This is a convenient method of {@link query} when only the first row of data is needed.
+     * @param boolean $fetchAssociative whether the row should be returned as an associated array with
+     * column names as the keys or the array keys are column indexes (0-based).
+     * @param array $params input parameters (name=>value) for the SQL execution. This is an alternative
+     * to {@link bindParam} and {@link bindValue}. If you have multiple input parameters, passing
+     * them in this way can improve the performance. Note that if you pass parameters in this way,
+     * you cannot bind parameters or values using {@link bindParam} or {@link bindValue}, and vice versa.
+     * Please also note that all values are treated as strings in this case, if you need them to be handled as
+     * their real data types, you have to use {@link bindParam} or {@link bindValue} instead.
+     * @return mixed the first row (in terms of an array) of the query result, false if no result.
+     * @throws CException execution failed
+     */
+    public function queryRow($fetchAssociative = true, $params = array())
+    {
+        return $this->queryInternal('fetch', $fetchAssociative ? $this->_fetchMode : PDO::FETCH_NUM, $params);
+    }
+
+    /**
+     * Builds a SQL statement for dropping a foreign key constraint.
+     * @param string $name the name of the foreign key constraint to be dropped. The name will be properly quoted by the method.
+     * @param string $table the table whose foreign is to be dropped. The name will be properly quoted by the method.
+     * @return integer number of rows affected by the execution.
+     * @since 1.1.6
+     */
+    public function dropForeignKey($name, $table)
+    {
+        return $this->setText($this->getConnection()->getSchema()->dropForeignKey($name, $table))->execute();
     }
 
     /**
@@ -1506,36 +1583,6 @@ class CDbCommand extends CComponent
     public function alterColumn($table, $column, $type)
     {
         return $this->setText($this->getConnection()->getSchema()->alterColumn($table, $column, $type))->execute();
-    }
-
-    /**
-     * Builds a SQL statement for adding a foreign key constraint to an existing table.
-     * The method will properly quote the table and column names.
-     * @param string $name the name of the foreign key constraint.
-     * @param string $table the table that the foreign key constraint will be added to.
-     * @param string|array $columns the name of the column to that the constraint will be added on. If there are multiple columns, separate them with commas or pass as an array of column names.
-     * @param string $refTable the table that the foreign key references to.
-     * @param string|array $refColumns the name of the column that the foreign key references to. If there are multiple columns, separate them with commas or pass as an array of column names.
-     * @param string $delete the ON DELETE option. Most DBMS support these options: RESTRICT, CASCADE, NO ACTION, SET DEFAULT, SET NULL
-     * @param string $update the ON UPDATE option. Most DBMS support these options: RESTRICT, CASCADE, NO ACTION, SET DEFAULT, SET NULL
-     * @return integer number of rows affected by the execution.
-     * @since 1.1.6
-     */
-    public function addForeignKey($name, $table, $columns, $refTable, $refColumns, $delete = null, $update = null)
-    {
-        return $this->setText($this->getConnection()->getSchema()->addForeignKey($name, $table, $columns, $refTable, $refColumns, $delete, $update))->execute();
-    }
-
-    /**
-     * Builds a SQL statement for dropping a foreign key constraint.
-     * @param string $name the name of the foreign key constraint to be dropped. The name will be properly quoted by the method.
-     * @param string $table the table whose foreign is to be dropped. The name will be properly quoted by the method.
-     * @return integer number of rows affected by the execution.
-     * @since 1.1.6
-     */
-    public function dropForeignKey($name, $table)
-    {
-        return $this->setText($this->getConnection()->getSchema()->dropForeignKey($name, $table))->execute();
     }
 
     /**
