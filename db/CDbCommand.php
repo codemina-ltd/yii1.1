@@ -1532,17 +1532,20 @@ class CDbCommand extends CComponent
 
     /**
      * Builds and executes a SQL statement for adding a new DB column.
-     * @param string $table the table that the new column will be added to. The table name will be properly quoted by the method.
-     * @param string $column the name of the new column. The name will be properly quoted by the method.
-     * @param string $type the column type. The {@link getColumnType} method will be invoked to convert abstract column type (if any)
-     * into the physical one. Anything that is not recognized as abstract type will be kept in the generated SQL.
-     * For example, 'string' will be turned into 'varchar(255)', while 'string not null' will become 'varchar(255) not null'.
      * @return integer number of rows affected by the execution.
+     * @throws Exception
      * @since 1.1.6
      */
-    public function addColumn($table, $column, $type)
+    public function addColumn(string $table, string $column, string|CDbMigrationColumn $type): int
     {
-        return $this->setText($this->getConnection()->getSchema()->addColumn($table, $column, $type))->execute();
+        $result = $this->setText($this->getConnection()->getSchema()->addColumn($table, $column, $type))->execute();
+
+        if ($type instanceof CDbMigrationColumn && $type->getColumnType() === CDbMigrationColumn::TYPE_FOREIGN_KEY) {
+            $index = strtoupper(bin2hex(random_bytes(5)));
+            $this->addForeignKey("INDEX_$index", $table, $column, $type->getRefTable(), $type->getRefColumn(), 'RESTRICT', 'CASCADE');
+        }
+
+        return $result;
     }
 
     /**
