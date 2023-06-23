@@ -1557,6 +1557,14 @@ class CDbCommand extends CComponent
      */
     public function dropColumn($table, $column)
     {
+        $constraints = $this->getConstraints($table);
+
+        foreach ($constraints as $constraint) {
+            if ($constraint['column'] === $column && $constraint['type'] === 'FOREIGN KEY') {
+                $this->dropForeignKey($constraint['name'], $table);
+            }
+        }
+
         return $this->setText($this->getConnection()->getSchema()->dropColumn($table, $column))->execute();
     }
 
