@@ -17,6 +17,14 @@
  */
 class ModelCommand extends CConsoleCommand
 {
+    private const columns_mapping = [
+        'string' => 'string',
+        'integer' => 'int',
+        'datetime' => 'DateTimeImmutable',
+        'date' => 'DateTimeImmutable',
+        'double' => 'float',
+    ];
+
     /**
      * @var string the directory that contains templates for the model command.
      * Defaults to null, meaning using 'framework/cli/views/shell/model'.
@@ -36,11 +44,22 @@ class ModelCommand extends CConsoleCommand
      * If this is false, it means unit test file should NOT be generated.
      */
     public $unitTestPath;
-
-    private $_schema;
-    private $_relations; // where we keep table relations
+    private $_schema; // where we keep table relations
+    private $_relations;
     private $_tables;
     private $_classes;
+
+    public static function getDataType(CMysqlColumnSchema $column): string
+    {
+        if ($column->comment === 'ARType:money') {
+            return 'Money';
+        }
+
+        return match ($column->comment) {
+            'ARType:money' => 'Money',
+            default => self::columns_mapping[$column->type]
+        };
+    }
 
     /**
      * Execute the action.
@@ -115,8 +134,6 @@ class ModelCommand extends CConsoleCommand
         }
 
         $templatePath = $this->templatePath === null ? YII_PATH . '/cli/views/shell/model' : $this->templatePath;
-        $fixturePath = $this->fixturePath === null ? Yii::getPathOfAlias('application.tests.fixtures') : $this->fixturePath;
-        $unitTestPath = $this->unitTestPath === null ? Yii::getPathOfAlias('application.tests.unit') : $this->unitTestPath;
 
         $list = array();
         $files = array();
@@ -128,24 +145,6 @@ class ModelCommand extends CConsoleCommand
                 'callback' => array($this, 'generateModel'),
                 'params' => array($className, $tableName),
             );
-            if ($fixturePath !== false) {
-                $list['fixtures/' . $tableName . '.php'] = array(
-                    'source' => $templatePath . DIRECTORY_SEPARATOR . 'fixture.php',
-                    'target' => $fixturePath . DIRECTORY_SEPARATOR . $tableName . '.php',
-                    'callback' => array($this, 'generateFixture'),
-                    'params' => $this->_schema->getTable($tableName),
-                );
-            }
-            if ($unitTestPath !== false) {
-                $fixtureName = $this->pluralize($className);
-                $fixtureName = substr_replace($fixtureName, strtolower($fixtureName), 0, 1);
-                $list['unit/' . $className . 'Test.php'] = array(
-                    'source' => $templatePath . DIRECTORY_SEPARATOR . 'test.php',
-                    'target' => $unitTestPath . DIRECTORY_SEPARATOR . $className . 'Test.php',
-                    'callback' => array($this, 'generateTest'),
-                    'params' => array($className, $fixtureName),
-                );
-            }
         }
 
         $this->copyFiles($list);
@@ -302,10 +301,10 @@ EOD;
                 $unprefixedTableName = $this->removePrefix($tableName, true);
 
                 $relationName = $this->generateRelationName($table0, $table1, true);
-                $this->_relations[$className0][$relationName] = "array(self::MANY_MANY, '$className1', '$unprefixedTableName($pks[0], $pks[1])')";
+                $this->_relations[$className0][$relationName] = "[self::MANY_MANY, '$className1', '$unprefixedTableName($pks[0], $pks[1])']";
 
                 $relationName = $this->generateRelationName($table1, $table0, true);
-                $this->_relations[$className1][$relationName] = "array(self::MANY_MANY, '$className0', '$unprefixedTableName($pks[0], $pks[1])')";
+                $this->_relations[$className1][$relationName] = "[self::MANY_MANY, '$className0', '$unprefixedTableName($pks[0], $pks[1])']";
             } else {
                 $this->_classes[$tableName] = $className = $this->getClassName($tableName);
                 foreach ($table->foreignKeys as $fkName => $fkEntry) {
@@ -316,12 +315,12 @@ EOD;
 
                     // Add relation for this table
                     $relationName = $this->generateRelationName($tableName, $fkName, false);
-                    $this->_relations[$className][$relationName] = "array(self::BELONGS_TO, '$refClassName', '$fkName')";
+                    $this->_relations[$className][$relationName] = "[self::BELONGS_TO, '$refClassName', '$fkName']";
 
                     // Add relation for the referenced table
                     $relationType = $table->primaryKey === $fkName ? 'HAS_ONE' : 'HAS_MANY';
                     $relationName = $this->generateRelationName($refTable, $this->removePrefix($tableName), $relationType === 'HAS_MANY');
-                    $this->_relations[$refClassName][$relationName] = "array(self::$relationType, '$className', '$fkName')";
+                    $this->_relations[$refClassName][$relationName] = "[self::$relationType, '$className', '$fkName']";
                 }
             }
         }
@@ -394,6 +393,8 @@ EOD;
             $length = array();
             $safe = array();
             foreach ($table->columns as $column) {
+                if (in_array($column->name, ['created_at', 'updated_at', 'deleted_at', 'uuid'])) continue;
+
                 $label = ucwords(trim(strtolower(str_replace(array('-', '_'), ' ', preg_replace('/(?<![A-Z])[A-Z]/', ' \0', $column->name)))));
                 $label = preg_replace('/\s+/', ' ', $label);
                 if (strcasecmp(substr($label, -3), ' id') === 0)
@@ -414,17 +415,17 @@ EOD;
                     $safe[] = $column->name;
             }
             if ($required !== array())
-                $rules[] = "array('" . implode(', ', $required) . "', 'required')";
+                $rules[] = "['" . implode(', ', $required) . "', 'required']";
             if ($integers !== array())
-                $rules[] = "array('" . implode(', ', $integers) . "', 'numerical', 'integerOnly'=>true)";
+                $rules[] = "['" . implode(', ', $integers) . "', 'numerical', 'integerOnly' => true]";
             if ($numerical !== array())
-                $rules[] = "array('" . implode(', ', $numerical) . "', 'numerical')";
+                $rules[] = "['" . implode(', ', $numerical) . "', 'numerical']";
             if ($length !== array()) {
                 foreach ($length as $len => $cols)
-                    $rules[] = "array('" . implode(', ', $cols) . "', 'length', 'max'=>$len)";
+                    $rules[] = "['" . implode(', ', $cols) . "', 'length', 'max' => $len]";
             }
             if ($safe !== array())
-                $rules[] = "array('" . implode(', ', $safe) . "', 'safe')";
+                $rules[] = "['" . implode(', ', $safe) . "', 'safe']";
 
             if (isset($this->_relations[$className]) && is_array($this->_relations[$className]))
                 $relations = $this->_relations[$className];
@@ -436,7 +437,7 @@ EOD;
         return $this->renderFile($source, array(
             'className' => $className,
             'tableName' => $this->removePrefix($tableName, true),
-            'columns' => isset($table) ? $table->columns : array(),
+            'columns' => isset($table) ? $table->columns : [],
             'rules' => $rules,
             'labels' => $labels,
             'relations' => $relations,
