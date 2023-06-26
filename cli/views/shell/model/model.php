@@ -11,12 +11,16 @@
 <?php echo "<?php\n"; ?>
 
 <?php foreach($columns as $column): ?>
-<?= $column->comment === 'ARType:money' ? 'use Money\Money;' : '' ?>
+<?= $column->comment === 'ARType:money' ? "use Money\Money;\n" : '' ?>
 <?php endforeach;?>
+use Doctrine\ORM\Mapping\Entity;
 
-
-class <?php echo $className; ?> extends CActiveRecord
+#[Entity(repositoryClass: <?= $className ?>Repository::class)]
+class <?php echo $className; ?> extends AbstractModel
 {
+    <?= "use UuidTrait;\r"?>
+    <?= "use DateAtTrait;\n\r"?>
+
 <?php foreach($columns as $column): ?>
 <?php if (in_array($column->name, ['created_at', 'updated_at', 'deleted_at', 'uuid'])) continue ?>
     <?php echo 'public '.($column->allowNull ? '?' : '').ModelCommand::getDataType($column).' $'.$column->name.";\n"; ?>
@@ -39,7 +43,7 @@ class <?php echo $className; ?> extends CActiveRecord
     public function relations(): array
     {
         return [
-    <?php foreach($relations as $name=>$relation): ?>
+    <?php foreach($relations as $name => $relation): ?>
         <?php echo "'$name' => $relation,\n"; ?>
     <?php endforeach; ?>
     ];

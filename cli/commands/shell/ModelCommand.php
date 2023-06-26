@@ -32,6 +32,8 @@ class ModelCommand extends CConsoleCommand
      * the default views will be used.
      */
     public $templatePath;
+    public $repositryPath = null;
+    public $inputsPath = null;
     /**
      * @var string the directory that contains test fixtures.
      * Defaults to null, meaning using 'protected/tests/fixtures'.
@@ -134,6 +136,8 @@ class ModelCommand extends CConsoleCommand
         }
 
         $templatePath = $this->templatePath === null ? YII_PATH . '/cli/views/shell/model' : $this->templatePath;
+        $repositoryPath = $this->repositryPath === null ? YII_PATH . '/cli/views/shell/repository' : $this->repositryPath;
+        $inputPath = $this->inputsPath === null ? YII_PATH . '/cli/views/shell/input' : $this->inputsPath;
 
         $list = array();
         $files = array();
@@ -145,6 +149,22 @@ class ModelCommand extends CConsoleCommand
                 'callback' => array($this, 'generateModel'),
                 'params' => array($className, $tableName),
             );
+            if ($repositoryPath !== false) {
+                $list['repositories/' . $className . 'Repository.php'] = array(
+                    'source' => $repositoryPath . DIRECTORY_SEPARATOR . 'repository.php',
+                    'target' => $basePath . DIRECTORY_SEPARATOR . '..' . DIRECTORY_SEPARATOR . 'repositories' . DIRECTORY_SEPARATOR . $className . 'repository.php',
+                    'callback' => array($this, 'generateRepository'),
+                    'params' => array($className),
+                );
+            }
+            if ($inputPath !== false) {
+                $list['inputs/' . $className . 'Input.php'] = array(
+                    'source' => $inputPath . DIRECTORY_SEPARATOR . 'input.php',
+                    'target' => $basePath . DIRECTORY_SEPARATOR . '..' . DIRECTORY_SEPARATOR . 'inputs' . DIRECTORY_SEPARATOR . $className . 'input.php',
+                    'callback' => array($this, 'generateInputs'),
+                    'params' => array($className, $tableName),
+                );
+            }
         }
 
         $this->copyFiles($list);
@@ -262,8 +282,9 @@ EOD;
             ucwords(
                 trim(
                     strtolower(
-                        str_replace(array('-', '_'), ' ',
-                            preg_replace('/(?<![A-Z])[A-Z]/', ' \0', $tableName))))));
+                        rtrim(str_replace('tbl', '',
+                            str_replace(array('-', '_'), ' ',
+                                preg_replace('/(?<![A-Z])[A-Z]/', ' \0', $tableName))), 's')))));
     }
 
     protected function removePrefix($tableName, $addBrackets = false)
@@ -315,12 +336,12 @@ EOD;
 
                     // Add relation for this table
                     $relationName = $this->generateRelationName($tableName, $fkName, false);
-                    $this->_relations[$className][$relationName] = "[self::BELONGS_TO, '$refClassName', '$fkName']";
+                    $this->_relations[$className][$relationName] = "[self::BELONGS_TO, $refClassName::class, '$fkName']";
 
                     // Add relation for the referenced table
                     $relationType = $table->primaryKey === $fkName ? 'HAS_ONE' : 'HAS_MANY';
                     $relationName = $this->generateRelationName($refTable, $this->removePrefix($tableName), $relationType === 'HAS_MANY');
-                    $this->_relations[$refClassName][$relationName] = "[self::$relationType, '$className', '$fkName']";
+                    $this->_relations[$refClassName][$relationName] = "[self::$relationType, $className::class, '$fkName']";
                 }
             }
         }
@@ -355,20 +376,25 @@ EOD;
      */
     protected function generateRelationName($tableName, $fkName, $multiple)
     {
-        if (strcasecmp(substr($fkName, -2), 'id') === 0 && strcasecmp($fkName, 'id'))
+        if (strcasecmp(substr($fkName, -2), 'id') === 0 && strcasecmp($fkName, 'id')) {
             $relationName = rtrim(substr($fkName, 0, -2), '_');
-        else
+        } else {
             $relationName = $fkName;
-        $relationName = substr_replace($relationName, strtolower($relationName), 0, 1);
+        }
 
         $rawName = $relationName;
-        if ($multiple)
+
+        if ($multiple) {
             $relationName = $this->pluralize($relationName);
+        }
 
         $table = $this->_schema->getTable($tableName);
         $i = 0;
-        while (isset($table->columns[$relationName]))
+
+        while (isset($table->columns[$relationName])) {
             $relationName = $rawName . ($i++);
+        }
+
         return $relationName;
     }
 
@@ -442,6 +468,26 @@ EOD;
             'labels' => $labels,
             'relations' => $relations,
         ), true);
+    }
+
+    public function generateRepository($source, $params)
+    {
+        list($className) = $params;
+
+        return $this->renderFile($source, [
+            'className' => $className
+        ], true);
+    }
+
+    public function generateInputs($source, $params)
+    {
+        list($className, $tableName) = $params;
+        $table = $this->_schema->getTable($tableName);
+
+        return $this->renderFile($source, [
+            'className' => $className,
+            'columns' => isset($table) ? $table->columns : [],
+        ], true);
     }
 
     public function generateFixture($source, $table)
